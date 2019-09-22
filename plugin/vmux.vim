@@ -20,9 +20,7 @@ function! SanitizeCommand(cmd)
 endfunction
 
 function! StripWhitespace(string)
-  call LogDebug("pre-format", a:string)
   let l:formatted = substitute(a:string, "\n", "", "g")
-  call LogDebug("post-format", l:formatted)
   return l:formatted
 endfunction
 
@@ -38,57 +36,42 @@ endfunction
 
 
 " Functions
-function! CallCommand(cmd, target)
+function! SendCommandToPane(cmd, target)
   let l:target = SanitizeCommand(a:target)
   let l:command = QuoteWrap(a:cmd)
   let l:dispatch = join([ s:tmux_command, "send-keys -t" . l:target, l:command, " Enter" ], ' ')
-
-  call LogDebug("dispatch", l:dispatch)
-
   return system(l:dispatch)
+endfunction
+
+function! RunCommand(cmd, pane_type)
+  let l:id = GetPane(a:cmd, a:pane_type)
+  call SendCommandToPane(a:cmd, l:id)
 endfunction
 
 function! GetPane(cmd, tmux_command)
   let s:key = GetKey(a:cmd)
-  call LogDebug("key", s:key)
   let l:pane_id = CreateShell(s:key, a:tmux_command)
-  call LogDebug("pane_id", l:pane_id)
   let g:vmux_panes[s:key] = l:pane_id
-  return l:pane_id
+  return StripWhitespace( l:pane_id )
 endfunction
 
 function! CreateShell(key, tmux_pane_command)
-  call LogDebug("key", a:key)
   let l:options =  join([s:create_in_background, s:print_pane_id], ' ')
   let l:tmux_pane_command = SanitizeCommand(a:tmux_pane_command)
   let l:full_command = join([ s:tmux_command, l:tmux_pane_command, l:options ], ' ')
 
-  call LogDebug("full_command", l:full_command)
-
   let l:raw_pane_identifier = system(l:full_command)
-
-  call LogDebug("raw_pane_identifier", l:raw_pane_identifier)
   let l:pane_identifier = StripWhitespace(l:raw_pane_identifier)
-
-  call LogDebug("pane_identifier", l:pane_identifier)
 
   return l:pane_identifier
 endfunction
 
 function! RunWindow(cmd)
-  let l:command = SanitizeCommand(a:cmd)
-  let l:unformatted_id = GetPane(l:command, 'new-window')
+  return RunCommand(a:cmd, 'new-window')
+endfunction
 
-  call LogDebug("unformatted_id", l:unformatted_id)
-
-  let l:id = StripWhitespace( l:unformatted_id )
-
-  call LogDebug("command", l:command)
-  call LogDebug("unformatted_id", l:unformatted_id)
-  call LogDebug("id", l:id)
-
-  call CallCommand(l:command, l:id)
-  return l:id
+function! RunSplit(cmd)
+  return RunCommand(a:cmd, 'split')
 endfunction
 
 
@@ -98,10 +81,11 @@ endfunction
 
 " Commands
 command! -nargs=1 RunWindow :call RunWindow(<args>)<CR>
+command! -nargs=1 RunSplit :call RunSplit(<args>)<CR>
 
 " Desired aliases
 nnoremap <silent> <leader>vh :call RunWindow('ls -l')<CR>
-" nnoremap <leader>vh RunWindow('ls -l')
+nnoremap <silent> <leader>vs :call RunSplit('ls -l')<CR>
 " nnoremap <leader>vv :call RunVSplit('echo test')<CR>
 " nnoremap <leader>vw :call RunWindow('echo test')<CR>
 
